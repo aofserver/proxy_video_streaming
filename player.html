@@ -1,0 +1,552 @@
+<!doctype html>
+<html lang="th"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>__TITLE__</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#07070c; --bg2:#0c0c14;
+    --panel:rgba(255,255,255,.045); --panel-2:rgba(255,255,255,.07);
+    --panel-brd:rgba(255,255,255,.09); --panel-brd-hi:rgba(124,92,255,.45);
+    --txt:#edecf3; --muted:#8f8fa3; --dim:#c9c9d6;
+    --accent:#7c5cff; --accent2:#00d4ff; --gold:#ffce54;
+    --ok:#3ddc84; --err:#ff5c6c; --radius:18px; --radius-sm:12px;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0; color:var(--txt); min-height:100vh; overflow-x:hidden;
+    font-family:'Noto Sans Thai',system-ui,-apple-system,sans-serif;
+    background:var(--bg);
+  }
+  /* พื้นหลัง aurora เคลื่อนไหวนุ่ม ๆ */
+  .aurora{position:fixed;inset:-20% -10% auto;height:70vh;z-index:-2;filter:blur(70px);opacity:.55;pointer-events:none}
+  .aurora::before,.aurora::after{content:"";position:absolute;border-radius:50%}
+  .aurora::before{width:55vw;height:55vw;left:5%;top:-10%;
+    background:radial-gradient(circle,rgba(124,92,255,.55),transparent 60%);
+    animation:float1 18s ease-in-out infinite}
+  .aurora::after{width:45vw;height:45vw;right:2%;top:-4%;
+    background:radial-gradient(circle,rgba(0,212,255,.4),transparent 60%);
+    animation:float2 22s ease-in-out infinite}
+  @keyframes float1{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(6%,8%) scale(1.12)}}
+  @keyframes float2{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(-8%,6%) scale(1.1)}}
+  body::after{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
+    background:radial-gradient(1200px 700px at 50% -15%,transparent,var(--bg) 75%)}
+
+  #wrap{max-width:1200px;margin:0 auto;padding:26px 20px 56px;
+    animation:rise .6s cubic-bezier(.2,.7,.2,1) both}
+  @keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+
+  header{display:flex;align-items:center;gap:14px;margin-bottom:22px}
+  .logo{
+    width:42px;height:42px;border-radius:13px;display:grid;place-items:center;flex:none;
+    background:linear-gradient(135deg,var(--accent),var(--accent2));
+    box-shadow:0 8px 24px rgba(124,92,255,.45);font-size:22px;font-weight:700;
+    text-decoration:none;color:#fff;transition:transform .2s,box-shadow .2s;
+  }
+  .logo:hover{transform:translateX(-3px) scale(1.04);box-shadow:0 10px 30px rgba(124,92,255,.6)}
+  .brand{display:flex;flex-direction:column;line-height:1.2;min-width:0}
+  .brand b{font-size:19px;font-weight:800;letter-spacing:.2px;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+    background:linear-gradient(90deg,#fff,#cbd4ff 90%);-webkit-background-clip:text;background-clip:text}
+  .brand span{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px}
+  .brand span::before{content:"";width:6px;height:6px;border-radius:50%;
+    background:var(--ok);box-shadow:0 0 8px var(--ok)}
+
+  .stage{display:grid;grid-template-columns:1fr;gap:20px}
+  @media(min-width:920px){ .stage{grid-template-columns:1.6fr .9fr;align-items:start} }
+
+  /* ---- player ---- */
+  .player-card{
+    position:relative;border-radius:var(--radius);overflow:hidden;background:#000;
+    box-shadow:0 30px 70px rgba(0,0,0,.6);
+    outline:1px solid var(--panel-brd);
+  }
+  .player-card::before{content:"";position:absolute;inset:0;border-radius:inherit;padding:1px;
+    background:linear-gradient(135deg,rgba(124,92,255,.5),transparent 40%,transparent 60%,rgba(0,212,255,.35));
+    -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);
+    -webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none;z-index:2}
+  video{display:block;width:100%;aspect-ratio:16/9;background:#000}
+  .loader{
+    position:absolute;inset:0;display:grid;place-items:center;gap:16px;
+    background:rgba(5,5,10,.78);backdrop-filter:blur(8px);transition:opacity .45s;
+    pointer-events:none;z-index:3;
+  }
+  .loader.hidden{opacity:0}
+  .spinner{width:52px;height:52px;border-radius:50%;position:relative}
+  .spinner::before,.spinner::after{content:"";position:absolute;inset:0;border-radius:50%;
+    border:3px solid transparent}
+  .spinner::before{border-top-color:var(--accent);border-right-color:var(--accent);
+    animation:spin .9s linear infinite}
+  .spinner::after{border-bottom-color:var(--accent2);
+    animation:spin 1.4s linear infinite reverse;inset:6px}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .loader p{margin:0;color:var(--dim);font-size:14px;font-weight:500;letter-spacing:.3px}
+
+  /* ---- controls ---- */
+  /* ---- ปุ่มเครื่องมือบนวิดีโอ (มุมขวาบน) + แผงตั้งค่า ---- */
+  .pc-tools{position:absolute;top:10px;right:10px;display:flex;gap:8px;z-index:4}
+  .pc-btn{
+    width:40px;height:40px;border-radius:11px;flex:none;cursor:pointer;color:#fff;
+    border:1px solid rgba(255,255,255,.18);background:rgba(10,10,16,.5);
+    backdrop-filter:blur(8px);display:grid;place-items:center;font-size:18px;line-height:1;
+    opacity:.55;transition:opacity .2s,background .2s,transform .2s;
+  }
+  .player-card:hover .pc-btn,.pc-btn.active{opacity:1}
+  .pc-btn:hover{background:rgba(124,92,255,.72);transform:translateY(-1px)}
+  .pc-btn.active{background:rgba(124,92,255,.72)}
+  .settings-panel{
+    position:absolute;top:58px;right:10px;z-index:5;width:min(260px,calc(100% - 20px));
+    background:rgba(13,13,21,.94);backdrop-filter:blur(16px);
+    border:1px solid var(--panel-brd);border-radius:15px;padding:15px;
+    display:none;flex-direction:column;gap:13px;box-shadow:0 20px 48px rgba(0,0,0,.62);
+  }
+  .settings-panel.open{display:flex;animation:pop .18s ease}
+  @keyframes pop{from{opacity:0;transform:translateY(-8px) scale(.98)}to{opacity:1;transform:none}}
+  .settings-panel .row label{
+    display:flex;align-items:center;gap:7px;font-size:11px;font-weight:700;
+    color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px;
+  }
+  .dl-row{padding-top:2px}
+  .dl-res{margin-bottom:9px}
+  .dl-btns{display:flex;gap:8px}
+  .dl-btn{
+    flex:1;cursor:pointer;border:1px solid var(--panel-brd);border-radius:9px;
+    background:#13131c;color:var(--txt);font-family:inherit;font-size:12px;font-weight:600;
+    padding:9px 8px;line-height:1.25;transition:border-color .2s,background .2s,transform .2s;
+  }
+  .dl-btn:hover:not(:disabled){border-color:var(--accent);background:rgba(124,92,255,.16);transform:translateY(-1px)}
+  .dl-btn b{display:block;font-size:13px;font-weight:800}
+  .dl-btn:disabled{opacity:.5;cursor:not-allowed}
+  .dl-status{margin-top:11px;font-size:12px;color:var(--dim);line-height:1.5;display:none}
+  .dl-status.show{display:block}
+  .dl-bar{height:7px;border-radius:5px;background:rgba(255,255,255,.1);overflow:hidden;margin-top:7px}
+  .dl-bar>span{display:block;height:100%;width:0;border-radius:5px;
+    background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .4s}
+  .dl-bar.indet>span{width:35%;animation:indet 1.1s ease-in-out infinite}
+  @keyframes indet{0%{margin-left:-35%}100%{margin-left:100%}}
+  .dl-save{display:inline-flex;align-items:center;gap:6px;margin-top:9px;
+    background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;
+    text-decoration:none;font-size:12.5px;font-weight:700;padding:8px 13px;border-radius:9px}
+  .dl-save:hover{filter:brightness(1.08)}
+  select{
+    width:100%;background:#13131c;color:var(--txt);
+    border:1px solid var(--panel-brd);border-radius:10px;padding:10px 12px;
+    font-family:inherit;font-size:14px;font-weight:500;cursor:pointer;appearance:none;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%238f8fa3' stroke-width='2.5'><path d='M6 9l6 6 6-6'/></svg>");
+    background-repeat:no-repeat;background-position:right 12px center;padding-right:36px;
+    transition:border-color .2s,box-shadow .2s;
+  }
+  select:hover{border-color:var(--panel-brd-hi)}
+  select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(124,92,255,.22)}
+
+  #status{
+    display:flex;align-items:center;gap:10px;font-size:13px;font-weight:500;color:var(--muted);
+    margin-top:16px;min-height:22px;padding:11px 15px;border-radius:12px;
+    background:var(--panel);border:1px solid var(--panel-brd);
+  }
+  #status .dot{width:9px;height:9px;border-radius:50%;background:var(--muted);flex:none}
+  #status.ok{color:var(--ok)} #status.ok .dot{background:var(--ok);animation:pulse 2s infinite}
+  #status.err{color:var(--err)} #status.err .dot{background:var(--err);animation:pulse 2s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(61,220,132,.5)}70%{box-shadow:0 0 0 9px rgba(61,220,132,0)}100%{box-shadow:0 0 0 0 rgba(61,220,132,0)}}
+
+  /* ---- การ์ดข้อมูลหนัง ---- */
+  .info-card{
+    background:linear-gradient(180deg,var(--panel-2),var(--panel));
+    border:1px solid var(--panel-brd);border-radius:var(--radius);
+    padding:20px;display:flex;flex-direction:column;gap:16px;
+    backdrop-filter:blur(10px);position:sticky;top:20px;
+  }
+  .info-head{display:flex;gap:16px}
+  .poster{
+    width:104px;flex:none;aspect-ratio:2/3;border-radius:12px;overflow:hidden;
+    background:#14141c;box-shadow:0 12px 28px rgba(0,0,0,.5);position:relative;
+  }
+  .poster::after{content:"";position:absolute;inset:0;border-radius:inherit;
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.1)}
+  .poster img{width:100%;height:100%;object-fit:cover;display:block;transition:transform .4s}
+  .poster:hover img{transform:scale(1.06)}
+  .info-head .meta{min-width:0;display:flex;flex-direction:column;gap:10px;justify-content:center}
+  .info-title{font-size:17px;font-weight:800;line-height:1.35;letter-spacing:.2px}
+  .rating{display:inline-flex;align-items:center;gap:5px;font-size:13px;font-weight:700;color:var(--gold)}
+  .rating svg{width:15px;height:15px;fill:var(--gold)}
+  .rating small{color:var(--muted);font-weight:500}
+  .genres{font-size:12px;color:var(--muted);font-weight:500}
+  .badges{display:flex;flex-wrap:wrap;gap:6px}
+  .badge{font-size:11px;font-weight:700;line-height:1;padding:6px 10px;border-radius:8px;letter-spacing:.3px}
+  .badge.q{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;
+    box-shadow:0 4px 12px rgba(124,92,255,.35)}
+  .tag{font-size:11px;font-weight:600;line-height:1;padding:6px 10px;border-radius:8px;
+    border:1px solid transparent;white-space:nowrap}
+  .tag.dub-th{color:#3ddc84;background:rgba(61,220,132,.12);border-color:rgba(61,220,132,.3)}
+  .tag.dub-en{color:#c4b5ff;background:rgba(124,92,255,.16);border-color:rgba(124,92,255,.38)}
+  .tag.sub-th{color:#00d4ff;background:rgba(0,212,255,.12);border-color:rgba(0,212,255,.3)}
+  .tag.sub-en{color:#ffb454;background:rgba(255,180,84,.12);border-color:rgba(255,180,84,.32)}
+  .tag.orig{color:#a8a8b8;background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.13)}
+  .desc-wrap{border-top:1px solid var(--panel-brd);padding-top:16px}
+  .desc-label{font-size:11px;font-weight:700;color:var(--muted);
+    text-transform:uppercase;letter-spacing:.7px;margin-bottom:9px;display:flex;align-items:center;gap:7px}
+  .desc-label::before{content:"";width:3px;height:13px;border-radius:2px;
+    background:linear-gradient(var(--accent),var(--accent2))}
+  .desc{font-size:14px;line-height:1.72;color:var(--dim);margin:0}
+  .info-empty{font-size:13px;color:var(--muted);line-height:1.7;text-align:center;padding:8px 0}
+  .info-empty .big{display:block;font-size:30px;margin-bottom:8px;opacity:.5}
+</style></head>
+<body>
+<div class="aurora"></div>
+<div id="wrap">
+  <header>
+    <a class="logo" href="/" title="กลับไปรายการหนัง">‹</a>
+    <div class="brand"><b>__TITLE__</b><span>เล่นตรงผ่าน proxy · ไม่มีโฆษณา</span></div>
+  </header>
+
+  <div class="stage">
+    <div class="main">
+      <div class="player-card" id="pcard">
+        <video id="v" controls autoplay playsinline controlsList="nofullscreen noremoteplayback"></video>
+        <div class="pc-tools">
+          <button class="pc-btn" id="btn-settings" title="ตั้งค่า เสียง / ซับ / คุณภาพ" aria-label="ตั้งค่า">⚙</button>
+          <button class="pc-btn" id="btn-dl" title="ดาวน์โหลดวิดีโอ" aria-label="ดาวน์โหลด">⬇</button>
+          <button class="pc-btn" id="btn-fs" title="เต็มจอ" aria-label="เต็มจอ">⛶</button>
+        </div>
+        <div class="settings-panel" id="settings">
+          <div class="row"><label>🔊 เสียง</label><select id="audio"></select></div>
+          <div class="row"><label>💬 ซับไตเติล</label><select id="subs"></select></div>
+          <div class="row"><label>🎬 คุณภาพ</label><select id="level"></select></div>
+        </div>
+        <div class="settings-panel dl-panel" id="dl-panel">
+          <div class="row dl-row">
+            <label>⬇ ดาวน์โหลดวิดีโอ</label>
+            <select id="dl-res" class="dl-res"></select>
+            <div class="dl-btns">
+              <button class="dl-btn" data-fmt="mp4">MP4<b>เสียงเดียว</b></button>
+              <button class="dl-btn" data-fmt="mkv">MKV<b>ทุกเสียง+ซับ</b></button>
+            </div>
+            <div class="dl-status" id="dl-status"></div>
+          </div>
+        </div>
+        <div class="loader" id="loader"><div class="spinner"></div><p>กำลังโหลดวิดีโอ...</p></div>
+      </div>
+      <div id="status"><span class="dot"></span><span id="status-txt">กำลังเริ่มต้น...</span></div>
+    </div>
+
+    <aside class="info-card" id="info-card"></aside>
+  </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/hls.js@1/dist/hls.min.js"></script>
+<script>
+const QS=new URLSearchParams(location.search);
+const SOURCE=QS.get('url')||'';
+const SITE=QS.get('site')||'';
+let MASTER=QS.get('master')||'';   // master URL ของเรื่องนี้ — 24hd ส่งมาตรง ๆ (vdohls ไม่มี token)
+                                   // 77hd จะได้จาก /resolve ทีหลัง
+let META=__META_JSON__;
+// ถ้ามาจาก browse ด้วย ?url=... ให้ประกอบ META จาก query (STATE ฝั่ง server อาจยังเป็นเรื่องก่อน)
+if(SOURCE){
+  META={
+    title:QS.get('title')||META.title||'',
+    source:SOURCE,
+    description:QS.get('desc')||'',
+    image:QS.get('image')||'',
+    quality:QS.get('quality')||'',
+    sound:QS.get('sound')||'',
+  };
+}
+function applyTitle(){
+  const t=META.title||'Local Player';
+  document.title=t;
+  const b=document.querySelector('.brand b'); if(b) b.textContent=t;
+}
+const v=document.getElementById('v'), st=document.getElementById('status'), stTxt=document.getElementById('status-txt');
+const loader=document.getElementById('loader');
+const aSel=document.getElementById('audio'), sSel=document.getElementById('subs'), lSel=document.getElementById('level');
+const SRC='/master.m3u8';
+const esc=s=>(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+function setStatus(msg,cls){stTxt.textContent=msg;st.className=cls||'';}
+function hideLoader(){loader.classList.add('hidden');}
+function fill(sel,items,cur,labelFn){sel.innerHTML='';items.forEach((it,i)=>{const o=document.createElement('option');o.value=i;o.textContent=labelFn(it,i);if(i===cur)o.selected=true;sel.appendChild(o);});}
+
+// ---- ป้ายภาษาเสียง/ซับ (เหมือนหน้า browse) ----
+function soundTags(sound){
+  if(!sound) return [];
+  const map=[
+    [/พากย์ไทย|ไทยโรง|^TH$|ไทย-?1xbet/i,'dub-th','พากย์ไทย'],
+    [/^EN$/i,'dub-en','พากย์อังกฤษ'],
+    [/ซับไทย|sub-?th/i,'sub-th','ซับไทย'],
+    [/sub-?en/i,'sub-en','ซับอังกฤษ'],
+    [/soundtrack|original/i,'orig','Soundtrack'],
+  ];
+  const out=[], seen=new Set();
+  sound.split('+').forEach(seg=>{
+    const s=seg.trim(); if(!s) return;
+    for(const [re,cls,label] of map){
+      if(re.test(s)){ if(!seen.has(cls)){seen.add(cls);out.push({cls,label});} return; }
+    }
+  });
+  return out;
+}
+
+// ---- แยกคะแนน / แนวหนัง / เรื่องย่อ ออกจาก description (best-effort) ----
+function parseDesc(desc){
+  const r={rating:null,genres:'',synopsis:''};
+  if(!desc) return r;
+  let t=desc.trim();
+  const mr=t.match(/คะแนน\s*([\d.]+)/);         // "คะแนน 7.7"
+  if(mr) r.rating=mr[1];
+  const mg=t.match(/(?:Animation|Action|Drama|Comedy|Horror|Romance|Thriller|Fantasy|Sci-?Fi|Adventure|Crime|Mystery|Family|Documentary|Animation|War|Music|History|Western)[\w\s,/&-]*/i);
+  if(mg) r.genres=mg[0].replace(/\s*คะแนน.*/,'').trim().replace(/[,\s]+$/,'');
+  const ms=t.split(/เรื่องย่อ\s*[:：]/);          // ตัดเอาส่วนหลัง "เรื่องย่อ:"
+  r.synopsis=(ms.length>1?ms[1]:t).trim();
+  return r;
+}
+
+const STAR='<svg viewBox="0 0 24 24"><path d="M12 2l2.9 6.3 6.9.7-5.1 4.6 1.4 6.8L12 17.8 5.9 20.4l1.4-6.8L2.2 9l6.9-.7z"/></svg>';
+
+// ---- ประกอบการ์ดข้อมูลหนัง ----
+function renderInfo(){
+  const card=document.getElementById('info-card');
+  const m=META||{};
+  const hasAny=m.image||m.description||m.quality||m.sound;
+  if(!hasAny){
+    card.innerHTML=`<div class="info-empty"><span class="big">🎬</span>
+      ไม่มีข้อมูลเพิ่มเติมสำหรับเรื่องนี้<br>
+      <small>(อัปเดตรายการแบบ “รวมเรื่องย่อ” ในหน้ารายการหนังเพื่อดึงเรื่องย่อ)</small></div>`;
+    return;
+  }
+  const p=parseDesc(m.description);
+  const poster=m.image
+    ? `<div class="poster"><img src="${esc(m.image)}" alt="" onerror="this.parentNode.style.display='none'"></div>` : '';
+  const ratingRow=p.rating
+    ? `<div class="rating">${STAR}${esc(p.rating)}<small>/ 10</small></div>` : '';
+  const genreRow=p.genres?`<div class="genres">${esc(p.genres)}</div>`:'';
+  const badges=[];
+  if(m.quality) badges.push(`<span class="badge q">${esc(m.quality)}</span>`);
+  soundTags(m.sound).forEach(t=>badges.push(`<span class="tag ${t.cls}">${t.label}</span>`));
+  const badgeRow=badges.length?`<div class="badges">${badges.join('')}</div>`:'';
+  const synopsis=p.synopsis
+    ? `<div class="desc-wrap">
+         <div class="desc-label">เรื่องย่อ</div>
+         <p class="desc" id="desc">${esc(p.synopsis)}</p>
+       </div>` : '';
+  card.innerHTML=`
+    <div class="info-head">
+      ${poster}
+      <div class="meta">
+        <div class="info-title">${esc(m.title||'')}</div>
+        ${ratingRow}
+        ${genreRow}
+      </div>
+    </div>
+    ${badgeRow}
+    ${synopsis}`;
+}
+renderInfo();
+applyTitle();
+
+// ---- ปุ่ม ⚙ ตั้งค่า + ปุ่ม ⬇ ดาวน์โหลด (แยกแผงกัน) + เต็มจอทั้งกรอบ player ----
+const pcard=document.getElementById('pcard');
+const btnSettings=document.getElementById('btn-settings');
+const btnDl=document.getElementById('btn-dl');
+const btnFs=document.getElementById('btn-fs');
+const settings=document.getElementById('settings');
+const dlPanel=document.getElementById('dl-panel');
+
+function togglePanel(panel,btn,other,otherBtn){
+  const open=panel.classList.toggle('open');
+  btn.classList.toggle('active',open);
+  if(open){ other.classList.remove('open'); otherBtn.classList.remove('active'); }
+}
+btnSettings.addEventListener('click',e=>{e.stopPropagation();togglePanel(settings,btnSettings,dlPanel,btnDl);});
+btnDl.addEventListener('click',e=>{e.stopPropagation();togglePanel(dlPanel,btnDl,settings,btnSettings);});
+document.addEventListener('click',e=>{
+  [[settings,btnSettings],[dlPanel,btnDl]].forEach(([panel,btn])=>{
+    if(panel.classList.contains('open') && !panel.contains(e.target) && e.target!==btn){
+      panel.classList.remove('open'); btn.classList.remove('active');
+    }
+  });
+});
+
+function fsElement(){return document.fullscreenElement||document.webkitFullscreenElement||null;}
+function enterFS(el){const fn=el.requestFullscreen||el.webkitRequestFullscreen; if(fn) fn.call(el);}
+function leaveFS(){const fn=document.exitFullscreen||document.webkitExitFullscreen; if(fn) fn.call(document);}
+btnFs.addEventListener('click',()=>{ fsElement() ? leaveFS() : enterFS(pcard); });
+function syncFsIcon(){ const f=fsElement(); btnFs.textContent=f?'✕':'⛶';
+  btnFs.title=f?'ออกจากเต็มจอ':'เต็มจอ'; }
+document.addEventListener('fullscreenchange',syncFsIcon);
+document.addEventListener('webkitfullscreenchange',syncFsIcon);
+
+// ---- ดาวน์โหลดวิดีโอ (ผ่าน server: fetch_zmdb) ----
+const dlBtns=document.querySelectorAll('.dl-btn');
+const dlStatus=document.getElementById('dl-status');
+const dlRes=document.getElementById('dl-res');
+let dlTimer=null;
+const PHASE={starting:'กำลังเริ่ม...',preparing:'กำลังเตรียม playlist...',
+  downloading:'กำลังโหลด',muxing:'กำลังรวมไฟล์ (ffmpeg)...',done:'เสร็จแล้ว',error:'ผิดพลาด'};
+
+// เติมตัวเลือกความละเอียดสำหรับดาวน์โหลด (จากชั้นความชัดของ hls ถ้ารู้)
+function fillDlRes(heights){
+  const uniq=[...new Set((heights||[]).filter(h=>h))].sort((a,b)=>b-a);
+  const list=uniq.length?uniq:[1080,720,480];
+  dlRes.innerHTML='';
+  list.forEach((h,i)=>{
+    const op=document.createElement('option');
+    op.value=h; op.textContent=h+'p'+(i===0?' (สูงสุด)':'');
+    dlRes.appendChild(op);
+  });
+}
+fillDlRes([]);   // fallback ก่อน manifest มา
+
+function setDlButtons(disabled){dlBtns.forEach(b=>b.disabled=disabled);}
+function showDl(html){dlStatus.innerHTML=html;dlStatus.classList.add('show');}
+
+function renderDl(s){
+  if(s.phase==='done'){
+    setDlButtons(false);
+    const link='/file?name='+encodeURIComponent(s.file||'');
+    showDl(`✅ ${esc(s.line||'เสร็จแล้ว')}<br>
+      <a class="dl-save" href="${link}" download>💾 บันทึกไฟล์</a>
+      <div style="margin-top:7px;color:var(--muted);font-size:11px">ไฟล์อยู่ในโฟลเดอร์ downloads/ แล้ว</div>`);
+    return true;
+  }
+  if(s.phase==='error'){
+    setDlButtons(false);
+    showDl(`❌ ${esc(s.error||'ดาวน์โหลดล้มเหลว')}`);
+    return true;
+  }
+  // กำลังทำงาน
+  const label=PHASE[s.phase]||'กำลังทำงาน';
+  const indet = s.pct==null;
+  const w = indet?0:s.pct;
+  showDl(`${esc(label)} ${s.line?('· '+esc(s.line)):''}
+    <div class="dl-bar ${indet?'indet':''}"><span style="width:${w}%"></span></div>
+    ${indet?'':('<div style="margin-top:5px;color:var(--muted);font-size:11px">'+w+'%</div>')}`);
+  return false;
+}
+
+// query string ระบุงานดาวน์โหลดของแท็บนี้ (คีย์ด้วย source ของเรื่อง)
+function dlQuery(){ return SOURCE ? ('?source='+encodeURIComponent(SOURCE)) : ''; }
+
+function pollDl(){
+  fetch('/download-status'+dlQuery()).then(r=>r.json()).then(s=>{
+    const done=renderDl(s);
+    if(done || !s.running){ clearInterval(dlTimer); dlTimer=null; if(!done && !s.running) setDlButtons(false); }
+  }).catch(()=>{});
+}
+
+dlBtns.forEach(btn=>btn.addEventListener('click',()=>{
+  const fmt=btn.dataset.fmt;
+  const h=dlRes.value;
+  if(SOURCE && !MASTER){ showDl('⏳ กำลังเตรียม stream ของเรื่องนี้ รอสักครู่แล้วลองใหม่'); return; }
+  setDlButtons(true);
+  showDl('กำลังเริ่มดาวน์โหลด...');
+  const p=new URLSearchParams({fmt});
+  if(h) p.set('height',h);
+  if(SOURCE) p.set('source',SOURCE);
+  if(MASTER) p.set('master',MASTER);
+  if(META.title) p.set('title',META.title);
+  fetch('/download?'+p.toString()).then(r=>r.json()).then(s=>{
+    if(!s.ok){ setDlButtons(false); showDl('⚠️ '+esc(s.message||'เริ่มไม่ได้')); return; }
+    renderDl(s);
+    if(!dlTimer) dlTimer=setInterval(pollDl,1500);
+  }).catch(e=>{ setDlButtons(false); showDl('⚠️ '+esc(String(e))); });
+}));
+
+// ถ้ามีดาวน์โหลดค้างอยู่ (เช่นรีเฟรชหน้า) ให้ต่อสถานะ
+fetch('/download-status'+dlQuery()).then(r=>r.json()).then(s=>{
+  if(s.running || s.phase==='done' || s.phase==='error'){
+    renderDl(s);
+    if(s.running){ setDlButtons(true); dlTimer=setInterval(pollDl,1500); }
+  }
+}).catch(()=>{});
+
+// ---- เล่นวิดีโอผ่าน hls.js ----
+function startPlayback(){
+const src = MASTER ? ('/master.m3u8?m='+encodeURIComponent(MASTER)) : SRC;
+if(window.Hls && Hls.isSupported()){
+  const hls=new Hls({lowLatencyMode:false});
+  hls.loadSource(src); hls.attachMedia(v);
+  const READY_MSG='พร้อมเล่น — กดปุ่ม ⚙ บนวิดีโอเพื่อเลือกเสียง / ซับ / คุณภาพ (ปรับได้แม้ตอนเต็มจอ)';
+  let recovering=false;
+  hls.on(Hls.Events.MANIFEST_PARSED,()=>{
+    setStatus(READY_MSG,'ok');
+    fill(lSel,[{name:'Auto'}].concat(hls.levels),0,(l,i)=>i===0?'Auto (อัตโนมัติ)':(l.height?l.height+'p':(l.bitrate/1e6).toFixed(1)+'M'));
+    fillDlRes(hls.levels.map(l=>l.height));   // ความละเอียดที่ดาวน์โหลดได้จริง
+  });
+  // เมื่อ segment ถัดไปโหลดเข้า buffer สำเร็จหลังเคยสะดุด → เคลียร์ข้อความ "กำลังกู้คืน"
+  hls.on(Hls.Events.FRAG_BUFFERED,()=>{ if(recovering){ recovering=false; setStatus(READY_MSG,'ok'); } });
+  v.addEventListener('playing',hideLoader,{once:true});
+  v.addEventListener('canplay',hideLoader,{once:true});
+  hls.on(Hls.Events.AUDIO_TRACKS_UPDATED,()=>fill(aSel,hls.audioTracks,hls.audioTrack,(t)=>t.name||t.lang||('Audio')));
+  hls.on(Hls.Events.SUBTITLE_TRACKS_UPDATED,()=>{const off=[{name:'ปิด'}];fill(sSel,off.concat(hls.subtitleTracks),0,(t,i)=>i===0?'ปิด':(t.name||t.lang||'Sub'));});
+  aSel.onchange=()=>hls.audioTrack=+aSel.value;
+  sSel.onchange=()=>{const i=+sSel.value;hls.subtitleTrack=i-1;hls.subtitleDisplay=i>0;};
+  lSel.onchange=()=>hls.currentLevel=+lSel.value-1;
+  // จัดการ error ของ hls.js:
+  //  - mediaError (เช่น fragParsingError จาก segment TS ที่สะดุดชั่วคราว) → กู้คืนอัตโนมัติ
+  //  - networkError → โหลดต่อใหม่
+  //  - non-fatal → ปล่อยผ่าน (hls.js จัดการเองได้ วิดีโอยังเล่นต่อ)
+  // แสดงข้อความ error จริง ๆ เฉพาะตอนกู้คืนไม่ได้แล้วเท่านั้น
+  let mediaRecover=0, netRecover=0;
+  hls.on(Hls.Events.ERROR,(e,d)=>{
+    if(!d.fatal) return;                       // error ที่ไม่ร้ายแรง — ปล่อย hls.js กู้เอง
+    if(d.type===Hls.ErrorTypes.MEDIA_ERROR && mediaRecover<3){
+      mediaRecover++; recovering=true;
+      setStatus('กำลังกู้คืนการเล่น... ('+mediaRecover+')','');
+      if(mediaRecover===1) hls.recoverMediaError();
+      else hls.swapAudioCodec(), hls.recoverMediaError();
+      return;
+    }
+    if(d.type===Hls.ErrorTypes.NETWORK_ERROR && netRecover<3){
+      netRecover++; recovering=true;
+      setStatus('เชื่อมต่อสะดุด กำลังโหลดต่อ... ('+netRecover+')','');
+      hls.startLoad();
+      return;
+    }
+    // กู้คืนไม่ได้แล้ว — แสดงข้อความที่เข้าใจง่าย
+    hideLoader();
+    const human = d.type===Hls.ErrorTypes.NETWORK_ERROR
+        ? 'โหลดสตรีมไม่สำเร็จ (เครือข่าย/ต้นทางไม่ตอบสนอง) — ลองกด F5 ใหม่'
+        : d.type===Hls.ErrorTypes.MEDIA_ERROR
+          ? 'ไฟล์วิดีโอมีปัญหา เล่นต่อไม่ได้ — ลองกด F5 หรือเปลี่ยนคุณภาพ'
+          : 'เล่นสตรีมไม่สำเร็จ — ลองกด F5 ใหม่';
+    setStatus('ผิดพลาด: '+human,'err');
+  });
+}else if(v.canPlayType('application/vnd.apple.mpegurl')){
+  v.src=src; setStatus('เล่นผ่าน native HLS (Safari) — เลือกเสียง/ซับที่ตัว player','ok');
+  v.addEventListener('playing',hideLoader,{once:true});
+}else{ hideLoader(); setStatus('เบราว์เซอร์นี้ไม่รองรับ HLS','err'); }
+}
+
+// ถ้ามาจาก browse (?url=...) → หา master สด ๆ ก่อนเล่น (กด F5 ก็หา master ใหม่ได้เสมอ)
+async function resolveThenPlay(){
+  setStatus(SITE==='24hd'
+    ? 'กำลังดึง stream จาก 24hd...'
+    : 'กำลังหา stream ผ่านเบราว์เซอร์เบื้องหลัง (อาจใช้เวลาสักครู่)...','');
+  try{
+    const p=new URLSearchParams({url:SOURCE});
+    ['title','desc','image','quality','sound'].forEach(k=>{const val=QS.get(k); if(val) p.set(k,val);});
+    const r=await fetch('/resolve?'+p.toString());
+    const j=await r.json();
+    if(!j.ok){ hideLoader(); setStatus('หา stream ไม่สำเร็จ: '+(j.error||'ไม่ทราบสาเหตุ'),'err'); return; }
+    MASTER=j.master||MASTER;
+    if(j.meta){ META=Object.assign({},META,j.meta); renderInfo(); applyTitle(); }
+    startPlayback();
+  }catch(e){ hideLoader(); setStatus('หา stream ไม่สำเร็จ: '+String(e.message||e),'err'); }
+}
+
+// การตัดสินใจเริ่มเล่น:
+//  - 24hd (มี MASTER มาแล้ว): เล่นตรงผ่าน proxy ทันที ไม่ต้อง /resolve (ไม่มี Playwright/token)
+//  - 77hd (?url= แต่ไม่มี master): หา master สดก่อนผ่าน /resolve (กด F5 = master ใหม่เสมอ)
+//  - เปิดเรื่องเดียวจาก CLI (ไม่มี ?url=): เล่นจาก STATE.master ของ server
+if(MASTER){
+  setStatus('พร้อมเล่น','ok');
+  startPlayback();
+}else if(SOURCE){
+  resolveThenPlay();
+}else{
+  startPlayback();
+}
+</script></body></html>

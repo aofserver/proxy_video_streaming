@@ -1,0 +1,5 @@
+# dependencies ของเซิร์ฟเวอร์ (main.py — FastAPI)
+fastapi>=0.110
+uvicorn[standard]>=0.27
+# หา master URL ด้วย Playwright/Chromium
+playwright>=1.55,<1.61

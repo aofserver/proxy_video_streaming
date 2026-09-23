@@ -1,0 +1,26 @@
+# --- Python ---
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# --- ผลลัพธ์การดาวน์โหลด (ไฟล์วิดีโอใหญ่ ไม่ควร commit) ---
+downloads/
+
+# --- ไบนารีขนาดใหญ่ (โหลดเองตาม README) ---
+bin/ffmpeg
+bin/ffprobe
+
+
+
+# --- ไฟล์ทดสอบชั่วคราวที่สร้างระหว่าง verify ---
+_verify_*.py
+_repro*.py
+
+# --- ขยะของ macOS / editor ---
+.DS_Store
+*.swp
+*~
+.idea/
+.vscode/

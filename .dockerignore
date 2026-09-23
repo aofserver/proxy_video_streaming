@@ -1,0 +1,32 @@
+# venv / build artifacts
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# ผลลัพธ์การโหลด (ผูกเป็น volume แทน)
+downloads/
+
+# ffmpeg/ffprobe เป็น binary ของ macOS — ใช้ใน Linux ไม่ได้ (เราลง ffmpeg ผ่าน apt แทน)
+bin/
+
+# git / เอกสาร / ของทดสอบ
+.git/
+.gitignore
+README.md
+spec.md
+probe.sh
+_verify_*.py
+_repro*.py
+
+# docker เอง
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# ขยะ macOS/editor
+.DS_Store
+*.swp
+.idea/
+.vscode/

@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="th"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>รายการหนัง</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0a0f; --panel:rgba(255,255,255,.04); --panel-brd:rgba(255,255,255,.08);
+    --txt:#e8e8ee; --muted:#8b8b99; --accent:#7c5cff; --accent2:#00d4ff;
+    --ok:#3ddc84; --err:#ff5c6c; --radius:14px;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; color:var(--txt); min-height:100vh;
+    font-family:'Noto Sans Thai',system-ui,-apple-system,sans-serif;
+    background:radial-gradient(1200px 600px at 50% -10%,rgba(124,92,255,.16),transparent 60%),
+               radial-gradient(900px 500px at 100% 0%,rgba(0,212,255,.08),transparent 55%),
+               var(--bg);
+    background-attachment:fixed;
+  }
+  #wrap{max-width:1320px;margin:0 auto;padding:22px 20px 60px}
+  header{display:flex;align-items:center;gap:12px;margin-bottom:18px;flex-wrap:wrap}
+  .logo{
+    width:38px;height:38px;border-radius:11px;display:grid;place-items:center;
+    background:linear-gradient(135deg,var(--accent),var(--accent2));
+    box-shadow:0 6px 20px rgba(124,92,255,.4);font-size:20px;flex:none;
+  }
+  .brand{display:flex;flex-direction:column;line-height:1.15}
+  .brand b{font-size:17px;font-weight:700}
+  .brand span{font-size:12px;color:var(--muted)}
+  .searchbar{flex:1 1 260px;min-width:200px;position:relative}
+  #q{
+    width:100%;background:var(--panel);border:1px solid var(--panel-brd);
+    border-radius:12px;padding:11px 40px 11px 14px;color:var(--txt);
+    font-family:inherit;font-size:15px;transition:border-color .2s;
+  }
+  #q:focus{outline:none;border-color:var(--accent)}
+  .searchbar svg{position:absolute;right:13px;top:50%;transform:translateY(-50%);opacity:.5}
+  #count{font-size:13px;color:var(--muted);white-space:nowrap}
+  .chk{font-size:12.5px;color:var(--muted);display:flex;align-items:center;gap:6px;
+    cursor:pointer;user-select:none;white-space:nowrap}
+  .chk input{accent-color:var(--accent);width:15px;height:15px}
+  #btn-update{
+    background:var(--panel);color:var(--txt);border:1px solid var(--panel-brd);
+    border-radius:10px;padding:9px 14px;font-family:inherit;font-size:13.5px;
+    font-weight:600;cursor:pointer;white-space:nowrap;transition:all .18s;
+  }
+  #btn-update:hover:not(:disabled){border-color:var(--accent);background:rgba(124,92,255,.14)}
+  #btn-update:disabled{opacity:.6;cursor:not-allowed}
+  #site-filter{
+    background:var(--panel);color:var(--txt);border:1px solid var(--panel-brd);
+    border-radius:10px;padding:9px 12px;font-family:inherit;font-size:13.5px;
+    font-weight:600;cursor:pointer;white-space:nowrap;
+  }
+  #site-filter:focus{outline:none;border-color:var(--accent)}
+  .grid{
+    display:grid;gap:16px;
+    grid-template-columns:repeat(auto-fill,minmax(180px,1fr));
+  }
+  .card{
+    background:var(--panel);border:1px solid var(--panel-brd);border-radius:var(--radius);
+    overflow:hidden;cursor:pointer;display:flex;flex-direction:column;
+    transition:transform .18s,border-color .18s,box-shadow .18s;
+  }
+  .card:hover{transform:translateY(-4px);border-color:rgba(124,92,255,.5);
+    box-shadow:0 14px 34px rgba(0,0,0,.5)}
+  .poster{position:relative;aspect-ratio:2/3;background:#14141c;overflow:hidden}
+  .poster img{width:100%;height:100%;object-fit:cover;display:block}
+  .poster .play{
+    position:absolute;inset:0;display:grid;place-items:center;opacity:0;
+    background:rgba(10,8,20,.45);transition:opacity .18s;font-size:34px;color:#fff;
+  }
+  .card:hover .poster .play{opacity:1}
+  .meta{padding:10px 12px 14px}
+  .meta .t{font-size:13.5px;font-weight:600;line-height:1.3;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .meta .d{font-size:11.5px;color:var(--muted);margin-top:6px;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  /* ป้ายภาษาเสียง/ซับ บนการ์ด */
+  .tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
+  .tag{font-size:10.5px;font-weight:600;line-height:1;padding:4px 7px;border-radius:6px;
+    border:1px solid transparent;white-space:nowrap}
+  .tag.dub-th{color:#3ddc84;background:rgba(61,220,132,.12);border-color:rgba(61,220,132,.3)}
+  .tag.dub-en{color:#c4b5ff;background:rgba(124,92,255,.16);border-color:rgba(124,92,255,.38)}
+  .tag.sub-th{color:#00d4ff;background:rgba(0,212,255,.12);border-color:rgba(0,212,255,.3)}
+  .tag.sub-en{color:#ffb454;background:rgba(255,180,84,.12);border-color:rgba(255,180,84,.32)}
+  .tag.orig{color:#a8a8b8;background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.13)}
+  /* ป้ายคุณภาพมุมบนโปสเตอร์ */
+  .qbadge{position:absolute;top:8px;left:8px;font-size:10.5px;font-weight:700;
+    padding:3px 7px;border-radius:6px;background:rgba(10,8,20,.72);color:#fff;
+    backdrop-filter:blur(4px);letter-spacing:.3px}
+  /* ป้ายแหล่งที่มา (77hd / 24hd) มุมขวาบน */
+  .sbadge{position:absolute;top:8px;right:8px;font-size:9.5px;font-weight:800;
+    padding:3px 6px;border-radius:6px;color:#fff;letter-spacing:.4px;
+    backdrop-filter:blur(4px)}
+  .sbadge.s77{background:rgba(124,92,255,.82)}
+  .sbadge.s24{background:rgba(0,190,140,.85)}
+  #sentinel{height:40px}
+  #empty{color:var(--muted);text-align:center;padding:60px 0;font-size:15px}
+  /* overlay ตอนกำลัง resolve */
+  #overlay{
+    position:fixed;inset:0;display:none;place-items:center;z-index:50;
+    background:rgba(5,5,10,.8);backdrop-filter:blur(8px);
+  }
+  #overlay.show{display:grid}
+  .box{text-align:center;max-width:420px;padding:0 20px}
+  .spinner{
+    width:52px;height:52px;border-radius:50%;margin:0 auto 18px;
+    border:3px solid rgba(255,255,255,.12);border-top-color:var(--accent);
+    animation:spin .8s linear infinite;
+  }
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .box h3{margin:0 0 6px;font-size:17px}
+  .box p{margin:0;color:var(--muted);font-size:13px;line-height:1.5}
+  .box .err{color:var(--err);margin-top:12px;white-space:pre-wrap}
+  .box button{
+    margin-top:16px;background:var(--accent);color:#fff;border:0;border-radius:9px;
+    padding:9px 18px;font-family:inherit;font-size:14px;cursor:pointer;display:none;
+  }
+</style></head>
+<body><div id="wrap">
+  <header>
+    <div class="logo">🎬</div>
+    <div class="brand"><b>รายการหนัง</b><span>เลือกเรื่องเพื่อเล่นผ่าน local proxy</span></div>
+    <div class="searchbar">
+      <input id="q" type="search" placeholder="ค้นหาชื่อหนัง / ซีรีย์...">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8b8b99" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+    </div>
+    <label class="chk"><input type="checkbox" id="withdesc"> รวมเรื่องย่อ (ช้ากว่า)</label>
+    <select id="site-filter" title="กรองตามแหล่ง">
+      <option value="">ทุกแหล่ง</option>
+      <option value="77hd">77HD</option>
+      <option value="24hd">24HD</option>
+    </select>
+    <button id="btn-update">⟳ อัปเดตรายการ</button>
+    <div id="count">กำลังโหลด...</div>
+  </header>
+  <div class="grid" id="grid"></div>
+  <div id="empty" style="display:none">ไม่พบหนังที่ตรงกับคำค้นหา</div>
+  <div id="sentinel"></div>
+</div>
+
+<div id="overlay">
+  <div class="box">
+    <div class="spinner" id="ov-spin"></div>
+    <h3 id="ov-title">กำลังเตรียมวิดีโอ...</h3>
+    <p id="ov-msg">กำลังหา stream ผ่านเบราว์เซอร์เบื้องหลัง (อาจใช้เวลา 10–60 วินาที)</p>
+    <div class="err" id="ov-err"></div>
+    <button id="ov-close">ปิด</button>
+  </div>
+</div>
+
+<script>
+const grid=document.getElementById('grid'), qEl=document.getElementById('q'),
+      countEl=document.getElementById('count'), emptyEl=document.getElementById('empty'),
+      sentinel=document.getElementById('sentinel'),
+      siteFilter=document.getElementById('site-filter');
+const ov=document.getElementById('overlay'), ovTitle=document.getElementById('ov-title'),
+      ovMsg=document.getElementById('ov-msg'), ovErr=document.getElementById('ov-err'),
+      ovSpin=document.getElementById('ov-spin'), ovClose=document.getElementById('ov-close');
+const PAGE=60;
+let all=[], filtered=[], shown=0;
+
+const esc=s=>(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+// แปลงค่า sound (เช่น "พากย์ไทย + ซับไทย", "SUB-EN", "TH") เป็นป้ายภาษา
+function soundTags(sound){
+  if(!sound) return [];
+  const map=[
+    [/พากย์ไทย|ไทยโรง|^TH$|ไทย-?1xbet/i,'dub-th','พากย์ไทย'],
+    [/^EN$/i,'dub-en','พากย์อังกฤษ'],
+    [/ซับไทย|sub-?th/i,'sub-th','ซับไทย'],
+    [/sub-?en/i,'sub-en','ซับอังกฤษ'],
+    [/soundtrack|original/i,'orig','Soundtrack'],
+  ];
+  const out=[], seen=new Set();
+  sound.split('+').forEach(seg=>{
+    const s=seg.trim(); if(!s) return;
+    for(const [re,cls,label] of map){
+      if(re.test(s)){ if(!seen.has(cls)){seen.add(cls);out.push({cls,label});} return; }
+    }
+  });
+  return out;
+}
+
+function cardHTML(m){
+  const img=m.image?`<img loading="lazy" src="${esc(m.image)}" alt="" onerror="this.style.display='none'">`:'';
+  const d=m.description?`<div class="d">${esc(m.description)}</div>`:'';
+  const qb=m.quality?`<div class="qbadge">${esc(m.quality)}</div>`:'';
+  const site=m.site||'77hd';
+  const siteBadge=`<div class="sbadge ${site==='24hd'?'s24':'s77'}">${site.toUpperCase()}</div>`;
+  const tags=soundTags(m.sound).map(t=>`<span class="tag ${t.cls}">${t.label}</span>`).join('');
+  const tagRow=tags?`<div class="tags">${tags}</div>`:'';
+  return `<div class="card" data-url="${esc(m.url)}" data-title="${esc(m.title)}"
+      data-desc="${esc(m.description)}" data-image="${esc(m.image)}"
+      data-quality="${esc(m.quality)}" data-sound="${esc(m.sound)}"
+      data-site="${esc(site)}" data-master="${esc(m.master||'')}">
+    <div class="poster">${img}${qb}${siteBadge}<div class="play">▶</div></div>
+    <div class="meta"><div class="t">${esc(m.title)}</div>${tagRow}${d}</div>
+  </div>`;
+}
+function renderMore(){
+  const next=filtered.slice(shown,shown+PAGE);
+  grid.insertAdjacentHTML('beforeend', next.map(cardHTML).join(''));
+  shown+=next.length;
+}
+function applyFilter(){
+  const q=qEl.value.trim().toLowerCase();
+  const site=siteFilter.value;
+  filtered=all.filter(m=>{
+    if(site && (m.site||'77hd')!==site) return false;
+    if(q && !(m.title||'').toLowerCase().includes(q)) return false;
+    return true;
+  });
+  grid.innerHTML=''; shown=0;
+  emptyEl.style.display=filtered.length?'none':'block';
+  countEl.textContent=`${filtered.length.toLocaleString()} เรื่อง`;
+  renderMore();
+}
+const io=new IntersectionObserver(es=>{
+  if(es[0].isIntersecting && shown<filtered.length) renderMore();
+},{rootMargin:'400px'});
+io.observe(sentinel);
+
+let t=null;
+qEl.addEventListener('input',()=>{clearTimeout(t);t=setTimeout(applyFilter,200);});
+siteFilter.addEventListener('change',applyFilter);
+
+grid.addEventListener('click',e=>{
+  const card=e.target.closest('.card'); if(!card) return;
+  play(card.dataset);
+});
+
+async function play(d){
+  const {url,title,desc='',image='',quality='',sound='',site='77hd',master=''}=d;
+  // ส่ง query string ไปหน้า player แล้วให้ player เป็นคนหา master เอง
+  // (กด F5 บนหน้า player จึงหา master URL ใหม่ได้เสมอ — token สดทุกครั้ง)
+  // 24hd: มี master URL (vdohls ไม่มี token) มาแล้ว ส่งไปเลย เล่นได้ทันทีไม่ต้อง resolve
+  const p=new URLSearchParams({url,title,desc,image,quality,sound,site});
+  if(master) p.set('master',master);
+  location.href='/player?'+p.toString();
+}
+ovClose.onclick=()=>ov.classList.remove('show');
+
+// ---- อัปเดตรายการหนัง ----
+const btnUpdate=document.getElementById('btn-update'), withDesc=document.getElementById('withdesc');
+let pollTimer=null;
+
+function loadMovies(){
+  return fetch('/movies.json').then(r=>r.json()).then(d=>{ all=d; applyFilter(); });
+}
+
+async function doUpdate(){
+  btnUpdate.disabled=true;
+  ovErr.textContent=''; ovClose.style.display='none'; ovSpin.style.display='block';
+  ovTitle.textContent='กำลังอัปเดตรายการหนัง...';
+  ovMsg.textContent='เริ่มต้น...';
+  ov.classList.add('show');
+  try{
+    const r=await fetch(`/update?desc=${withDesc.checked?1:0}`);
+    const j=await r.json();
+    if(j.started===false && j.running) ovMsg.textContent='มีการอัปเดตกำลังทำงานอยู่ — รอสักครู่...';
+    pollTimer=setInterval(pollStatus,1000);
+  }catch(err){ updateFailed(err); }
+}
+
+async function pollStatus(){
+  try{
+    const s=await (await fetch('/update-status')).json();
+    if(s.phase==='pages'){
+      const tp=s.total_pages?` / ${s.total_pages}`:'';
+      ovMsg.textContent=`กำลังไล่หน้า ${s.page}${tp} — เจอ ${s.movies} เรื่อง`;
+    }else if(s.phase==='desc'){
+      ovMsg.textContent=`กำลังดึงเรื่องย่อ ${s.done} / ${s.total}`;
+    }else if(s.phase==='done'){
+      clearInterval(pollTimer);
+      ovSpin.style.display='none';
+      ovTitle.textContent='อัปเดตเสร็จแล้ว ✔';
+      ovMsg.textContent=`รวม ${s.count.toLocaleString()} เรื่อง`;
+      await loadMovies();
+      setTimeout(()=>{ov.classList.remove('show');btnUpdate.disabled=false;},900);
+    }else if(s.phase==='error'){
+      clearInterval(pollTimer); updateFailed(new Error(s.error||'ไม่ทราบสาเหตุ'));
+    }
+  }catch(err){ clearInterval(pollTimer); updateFailed(err); }
+}
+
+function updateFailed(err){
+  ovSpin.style.display='none';
+  ovTitle.textContent='อัปเดตไม่สำเร็จ';
+  ovMsg.textContent='ลองใหม่อีกครั้ง';
+  ovErr.textContent=String(err.message||err);
+  ovClose.style.display='inline-block';
+  btnUpdate.disabled=false;
+}
+btnUpdate.onclick=doUpdate;
+
+loadMovies().catch(e=>{
+  countEl.textContent='โหลดรายการไม่ได้';
+  emptyEl.style.display='block';
+  emptyEl.textContent='โหลด 77hd_movies.json ไม่ได้ — รัน `python3 list_77hd.py` ก่อน';
+});
+</script></body></html>
