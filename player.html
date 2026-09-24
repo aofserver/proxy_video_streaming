@@ -193,6 +193,19 @@
   .desc{font-size:14px;line-height:1.72;color:var(--dim);margin:0}
   .info-empty{font-size:13px;color:var(--muted);line-height:1.7;text-align:center;padding:8px 0}
   .info-empty .big{display:block;font-size:30px;margin-bottom:8px;opacity:.5}
+
+  /* ---------- mobile ---------- */
+  /* จอสัมผัสไม่มี hover → ปุ่มบนวิดีโอค้างที่ opacity .55 มองแทบไม่เห็น */
+  @media (hover:none){ .pc-btn{opacity:1} }
+  @media (max-width:640px){
+    /* จอแคบ: video 16:9 เตี้ยกว่าแผงตั้งค่า (ต้องการ ~294px จากขอบบนการ์ด)
+       แผงที่ลอยทับอยู่ในการ์ดจึงโดน overflow:hidden ตัดแถว "คุณภาพ" หาย
+       → เปลี่ยนเป็นวางเป็นบล็อกใต้ video เต็มความกว้าง เห็นครบทุกแถวทุกขนาดจอ */
+    /* relative (ไม่ใช่ static) เพื่อให้ z-index:5 ยังทำงาน — static จะโดน .loader ทับ */
+    .settings-panel{position:relative;width:auto;top:auto;right:auto;margin:0 10px 10px}
+    .pc-tools{top:8px;right:8px;gap:6px}
+    .pc-btn{width:36px;height:36px;font-size:16px}
+  }
 </style></head>
 <body>
 <div class="aurora"></div>
