@@ -29,10 +29,11 @@ Local **proxy + web player** สำหรับดูและดาวน์โ
 | `tools_77hd.py` | core logic ทั้งหมด (proxy/resolve/download) + เซิร์ฟเวอร์ stdlib สำรอง (`main.py` import ไปใช้) |
 | `fetch_zmdb.py` | ตัวดาวน์โหลดหลัก — จัดการ content steering, token สด, mux เสียง/ซับ |
 | `download_video_77hd.py` | หา master URL ด้วย Playwright (`grab_master`) + CLI wrapper |
-| `list_77hd.py` | crawler ไล่เก็บรายชื่อหนังจาก 77-hd.com → `77hd_movies.json` |
-| `list_24hd.py` | crawler ไล่เก็บหนังจาก 24hd.media → `24hd_movies.json` (เก็บ **Master URL** vdohls ให้เลย ไม่มี token) |
+| `list_77hd.py` | crawler ไล่เก็บรายชื่อหนังจาก 77-hd.com → ตาราง `movies` (`source='77hd'`) |
+| `list_24hd.py` | crawler ไล่เก็บหนังจาก 24hd.media → ตาราง `movies` (`source='24hd'`) (เก็บ **Master URL** vdohls ให้เลย ไม่มี token) |
+| `movies_db.py` | ชั้นเก็บข้อมูล (SQLite) — schema + upsert + query ใช้ร่วมกันทั้ง 3 ไฟล์ข้างบน |
 | `player.html`, `browse.html` | หน้าเว็บ (player / รายการหนัง) |
-| `77hd_movies.json` | รายการหนัง (สร้างด้วย `list_77hd.py` หรือปุ่มอัปเดตในหน้า browse) |
+| `movies.db` | รายการหนังทั้งสองแหล่งในไฟล์เดียว (สร้างด้วย `list_77hd.py`/`list_24hd.py` หรือปุ่มอัปเดตในหน้า browse) |
 | `bin/ffmpeg`, `bin/ffprobe` | ffmpeg static (arm64) สำหรับรันในเครื่อง — สคริปต์เรียกจากที่นี่ก่อน PATH |
 | `Dockerfile`, `docker-compose.yml` | รันแบบ container (base slim + Chromium อย่างเดียว) |
 | `requirements.txt` | dependencies: `fastapi`, `uvicorn[standard]`, `playwright` |
@@ -70,11 +71,15 @@ python3 -m venv .venv
 .venv/bin/python main.py "https://77-hd.com/zootopia-2-2025/" --open
 ```
 
-ถ้ายังไม่มี `77hd_movies.json` ให้สร้างก่อน (ใช้เวลาสักพัก crawl ทุกหน้า):
+ถ้ายังไม่มีรายการหนังใน `movies.db` ให้สร้างก่อน (ใช้เวลาสักพัก crawl ทุกหน้า):
 
 ```sh
-.venv/bin/python list_77hd.py
+.venv/bin/python list_77hd.py            # 77-hd.com → source='77hd'
+.venv/bin/python list_24hd.py            # 24hd.media → source='24hd' (ได้ master URL มาด้วย)
 ```
+
+> เขียนทับ/อัปเดตได้ปลอดภัย — เป็น upsert คีย์ด้วย `url` ค่าว่างจากรอบที่ดึงไม่ครบ
+> (เช่น ไม่ติ๊ก "รวมเรื่องย่อ" หรือ fetch ล้ม) จะไม่ลบข้อมูลเดิม และ `id` ของแต่ละเรื่องคงที่
 
 #### รันด้วย uvicorn ตรง ๆ ก็ได้ (ต้อง 1 worker เท่านั้น)
 
@@ -105,8 +110,9 @@ python3 -m venv .venv
 | Endpoint | หน้าที่ |
 |----------|---------|
 | `GET /` | หน้า browse (หรือ player ถ้าเปิดแบบเรื่องเดียว) |
-| `GET /player` | หน้า player |
-| `GET /movies.json` | รายการหนัง (JSON) |
+| `GET /player?id=N` | หน้า player — รับแค่ `id` แล้วไปถาม DB เองว่าเรื่องนี้คืออะไร (ยังรับ `?url=` แบบเดิมได้) |
+| `GET /movies.json` | รายการหนัง (JSON) — มี `id` ให้หน้า browse ทำลิงก์ `/player?id=` |
+| `GET /movie.json?id=N` | หนังเรื่องเดียวตาม `id` (404 ถ้าไม่พบ) |
 | `GET /resolve?url=` | หา master + CDN mirror ของเรื่องนั้น (ใช้ Playwright ถ้าเป็น URL หน้าเว็บ) |
 | `GET /master.m3u8?m=` | master playlist ที่ rewrite แล้ว (pin master ต่อแท็บด้วย `?m=`) |
 | `GET /p?u=&seg=` | proxy ดึง segment/playlist (สลับ host ไป CDN mirror ให้) |

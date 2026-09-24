@@ -12,8 +12,10 @@ services:
     volumes:
       # ไฟล์วิดีโอที่โหลด เก็บออกมาที่โฮสต์ (โฟลเดอร์ downloads/ ข้าง ๆ ไฟล์นี้)
       - ./downloads:/app/downloads
-      # รายการหนัง — แก้/อัปเดตได้โดยไม่ต้อง rebuild image (ต้องมีไฟล์นี้อยู่ก่อน)
-      - ./77hd_movies.json:/app/77hd_movies.json
+      # รายการหนัง (SQLite) — อัปเดตได้โดยไม่ต้อง rebuild image
+      # mount "ไฟล์" ไม่ใช่โฟลเดอร์ เพราะ SQLite จะสร้าง movies.db-wal/-shm ข้าง ๆ
+      # ใน /app ซึ่งเป็นของ appuser อยู่แล้ว จึงเขียนได้
+      - ./movies.db:/app/movies.db
 
     # Chromium (Playwright) ต้องการ /dev/shm ใหญ่ ไม่งั้น renderer crash ตอนหา master
     shm_size: "1gb"

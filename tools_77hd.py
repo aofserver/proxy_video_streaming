@@ -44,6 +44,7 @@ import fetch_zmdb as fz              # reuse: http_get, get_text, swap_host, res
 import download_video_77hd as dv     # reuse: grab_master (Playwright)
 import list_77hd as lister           # reuse: run_crawl (ปุ่มอัปเดตรายการหนัง)
 import list_24hd as lister24         # reuse: run_crawl (รายการหนัง 24hd)
+import movies_db                     # ที่เก็บรายการหนัง (SQLite ไฟล์เดียว)
 
 # --- แหล่ง 24hd (vdohls) : master URL อยู่ใน JSON แล้ว ไม่มี token/steering ---
 # ทุก request ไป vdohls/CDN ของมันต้องมี Referer นี้ (ไม่งั้น 403) — ไม่ต้องมี Origin
@@ -248,34 +249,35 @@ def fetch_upstream(u: str, seg: bool) -> bytes:
 # --------------------------------------------------------------------------- #
 PLAYER_TEMPLATE = HERE / "player.html"
 BROWSE_TEMPLATE = HERE / "browse.html"
-MOVIES_JSON = HERE / "77hd_movies.json"
-MOVIES_JSON_24 = HERE / "24hd_movies.json"
+MOVIES_DB = movies_db.DB_PATH
 
 
-def _load_json_list(path: Path) -> list:
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-        return data if isinstance(data, list) else []
-    except Exception:  # noqa: BLE001
-        return []
+def _api_row(m: dict) -> dict:
+    """แถวจาก DB → รูปแบบที่ API ส่งออก
+
+    คอลัมน์ใน DB ชื่อ `source` แต่ API ส่งออกเป็น `site` ตามที่ frontend ใช้อยู่
+    (browse.html อ่าน m.site / data-site) — จึงไม่ต้องแก้ JS
+    `id` ส่งออกด้วย เพราะหน้า browse ใช้ทำลิงก์ `/player?id=` แล้วให้ player
+    มาถาม DB เองว่าเรื่องนี้คืออะไร (ไม่ต้องยัดทุกฟิลด์ลง query string)
+    """
+    m["site"] = m.pop("source")
+    return m
 
 
 def merged_movies() -> list[dict]:
-    """รวมรายการหนังจากทั้ง 77hd และ 24hd เป็น list เดียว ติดป้าย field `site`
-    เพื่อให้หน้า browse รู้ว่าแต่ละเรื่องมาจากแหล่งไหน (เล่นด้วยกลไกต่างกัน):
+    """รวมรายการหนังจากทั้ง 77hd และ 24hd (ตาราง movies ใน movies.db) เป็น list เดียว
+    ติดป้าย field `site` เพื่อให้หน้า browse รู้ว่าแต่ละเรื่องมาจากแหล่งไหน
+    (เล่นด้วยกลไกต่างกัน):
       - 77hd: ต้อง resolve master ด้วย Playwright ก่อน (ไม่มี field master)
       - 24hd: มี master URL (vdohls) มาแล้ว เล่น/โหลดได้ทันที
     """
-    out: list[dict] = []
-    for m in _load_json_list(MOVIES_JSON):
-        m = dict(m)
-        m.setdefault("site", "77hd")
-        out.append(m)
-    for m in _load_json_list(MOVIES_JSON_24):
-        m = dict(m)
-        m["site"] = "24hd"
-        out.append(m)
-    return out
+    return [_api_row(m) for m in movies_db.load_all()]
+
+
+def find_movie(movie_id: int) -> dict | None:
+    """หนังเรื่องเดียวตาม id (None ถ้าไม่พบ) — ให้หน้า player ที่เปิดด้วย ?id= ใช้"""
+    m = movies_db.get(movie_id)
+    return _api_row(m) if m else None
 
 
 def render_player() -> bytes:
@@ -301,7 +303,7 @@ def render_player() -> bytes:
 
 def fetch_full_synopsis(page_url: str) -> str | None:
     """ดึงเรื่องย่อ 'เต็ม' จากหน้า 77-hd (<div class="synopsis-content">)
-    เพราะ 77hd_movies.json เก็บมาแค่พรีวิวที่ถูกตัดด้วย '...' — best-effort"""
+    เพราะรายการที่ crawl มาเก็บแค่พรีวิวที่ถูกตัดด้วย '...' — best-effort"""
     if is_master_source(page_url):
         return None
     try:
@@ -357,7 +359,7 @@ def start_update(with_desc: bool) -> bool:
 
     def worker() -> None:
         try:
-            n = lister.run_crawl(MOVIES_JSON, max_pages=0, delay=0.2,
+            n = lister.run_crawl(max_pages=0, delay=0.2,
                                  with_desc=with_desc, workers=10,
                                  on_progress=on_progress)
             with UPDATE_LOCK:
@@ -520,6 +522,20 @@ class Handler(BaseHTTPRequestHandler):
                     self._send(b"[]", "application/json; charset=utf-8", 404)
                 else:
                     self._send(json.dumps(movies, ensure_ascii=False).encode(),
+                               "application/json; charset=utf-8")
+                return
+
+            if parts.path == "/movie.json":
+                # หน้า player เปิดด้วย ?id= แล้วมาถามเรื่องนี้จาก DB
+                try:
+                    movie = find_movie(int(qs.get("id", [""])[0]))
+                except ValueError:
+                    movie = None
+                if movie is None:
+                    self._send(b'{"error":"not found"}',
+                               "application/json; charset=utf-8", 404)
+                else:
+                    self._send(json.dumps(movie, ensure_ascii=False).encode(),
                                "application/json; charset=utf-8")
                 return
 
@@ -717,7 +733,7 @@ def main() -> int:
         description="local proxy + player สำหรับเล่นวิดีโอ 77-hd/zmdb ในเบราว์เซอร์เอง")
     ap.add_argument("source", nargs="?",
                     help="URL หน้าหนัง 77-hd หรือ master URL ตรง ๆ "
-                         "(ไม่ใส่ = เปิดโหมด browse รายการหนังจาก 77hd_movies.json)")
+                         "(ไม่ใส่ = เปิดโหมด browse รายการหนังจาก movies.db)")
     ap.add_argument("--port", type=int, default=8080)
     ap.add_argument("--host", default="127.0.0.1", help="ค่าเริ่มต้น 127.0.0.1 (อย่าเปลี่ยนถ้าไม่จำเป็น)")
     ap.add_argument("--open", action="store_true", help="เปิดเบราว์เซอร์ให้อัตโนมัติ")
@@ -738,18 +754,15 @@ def main() -> int:
         if info["resolutions"]:
             print(f"  ความละเอียด: {', '.join(info['resolutions'])}", file=sys.stderr)
     else:
-        # ---- โหมด browse: แสดงรายการหนังจาก 77hd_movies.json ----
+        # ---- โหมด browse: แสดงรายการหนังจาก movies.db ----
         STATE["browse"] = True
-        if not MOVIES_JSON.exists():
-            print(f"เตือน: ไม่พบ {MOVIES_JSON.name} — รัน `python3 list_77hd.py` ก่อน "
-                  f"เพื่อสร้างรายการหนัง", file=sys.stderr)
+        n = movies_db.count()
+        if not n:
+            print(f"เตือน: ยังไม่มีรายการหนังใน {MOVIES_DB.name} — รัน "
+                  f"`python3 list_77hd.py` ก่อนเพื่อสร้างรายการหนัง", file=sys.stderr)
         else:
-            try:
-                n = len(json.loads(MOVIES_JSON.read_text(encoding="utf-8")))
-                print(f"โหมด browse: โหลดรายการหนัง {n} เรื่องจาก {MOVIES_JSON.name}",
-                      file=sys.stderr)
-            except Exception:  # noqa: BLE001
-                print(f"โหมด browse: ใช้ {MOVIES_JSON.name}", file=sys.stderr)
+            print(f"โหมด browse: โหลดรายการหนัง {n} เรื่องจาก {MOVIES_DB.name}",
+                  file=sys.stderr)
 
     url = f"http://{args.host}:{args.port}/"
     srv = ThreadingHTTPServer((args.host, args.port), Handler)

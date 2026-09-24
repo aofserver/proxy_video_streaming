@@ -8,6 +8,11 @@ __pycache__/
 # --- ผลลัพธ์การดาวน์โหลด (ไฟล์วิดีโอใหญ่ ไม่ควร commit) ---
 downloads/
 
+# --- ไฟล์ชั่วคราวของ SQLite (เกิดตอนเซิร์ฟเวอร์รัน ไม่ควร commit) ---
+# ตัว movies.db เอง track ไว้ (แทน 77hd_movies.json/24hd_movies.json เดิม)
+movies.db-wal
+movies.db-shm
+
 # --- ไบนารีขนาดใหญ่ (โหลดเองตาม README) ---
 bin/ffmpeg
 bin/ffprobe

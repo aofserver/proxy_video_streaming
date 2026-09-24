@@ -199,7 +199,7 @@ const grid=document.getElementById('grid'), qEl=document.getElementById('q'),
 const ov=document.getElementById('overlay'), ovTitle=document.getElementById('ov-title'),
       ovMsg=document.getElementById('ov-msg'), ovErr=document.getElementById('ov-err'),
       ovSpin=document.getElementById('ov-spin'), ovClose=document.getElementById('ov-close');
-const PAGE=60;
+const PAGE=20, MARGIN=400;   // MARGIN ต้องตรงกับ rootMargin ของ IntersectionObserver ด้านล่าง
 let all=[], filtered=[], shown=0;
 
 const esc=s=>(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -232,10 +232,8 @@ function cardHTML(m){
   const siteBadge=`<div class="sbadge ${site==='24hd'?'s24':'s77'}">${site.toUpperCase()}</div>`;
   const tags=soundTags(m.sound).map(t=>`<span class="tag ${t.cls}">${t.label}</span>`).join('');
   const tagRow=tags?`<div class="tags">${tags}</div>`:'';
-  return `<div class="card" data-url="${esc(m.url)}" data-title="${esc(m.title)}"
-      data-desc="${esc(m.description)}" data-image="${esc(m.image)}"
-      data-quality="${esc(m.quality)}" data-sound="${esc(m.sound)}"
-      data-site="${esc(site)}" data-master="${esc(m.master||'')}">
+  // ส่งต่อแค่ id — หน้า player ไปถาม DB เองว่าเรื่องนี้คืออะไร
+  return `<div class="card" data-id="${m.id}">
     <div class="poster">${img}${qb}${siteBadge}<div class="play">▶</div></div>
     <div class="meta"><div class="t">${esc(m.title)}</div>${tagRow}${d}</div>
   </div>`;
@@ -244,6 +242,11 @@ function renderMore(){
   const next=filtered.slice(shown,shown+PAGE);
   grid.insertAdjacentHTML('beforeend', next.map(cardHTML).join(''));
   shown+=next.length;
+  // IntersectionObserver ยิงเฉพาะตอน "สถานะเปลี่ยน": พอกรอง/ล้างคำค้น เนื้อหายุบลง
+  // sentinel ยัง intersect อยู่ (สถานะเท่าเดิม) จึงไม่ยิงซ้ำ -> รายการค้างที่ 20
+  // เช็คเองแล้วโหลดต่อจนพ้นจอ (shown เพิ่มทุกครั้ง วนได้ไม่เกินจำนวนหน้า)
+  if(shown<filtered.length && sentinel.getBoundingClientRect().top<innerHeight+MARGIN)
+    renderMore();
 }
 function applyFilter(){
   const q=qEl.value.trim().toLowerCase();
@@ -260,7 +263,7 @@ function applyFilter(){
 }
 const io=new IntersectionObserver(es=>{
   if(es[0].isIntersecting && shown<filtered.length) renderMore();
-},{rootMargin:'400px'});
+},{rootMargin:MARGIN+'px'});
 io.observe(sentinel);
 
 let t=null;
@@ -272,14 +275,10 @@ grid.addEventListener('click',e=>{
   play(card.dataset);
 });
 
-async function play(d){
-  const {url,title,desc='',image='',quality='',sound='',site='77hd',master=''}=d;
-  // ส่ง query string ไปหน้า player แล้วให้ player เป็นคนหา master เอง
-  // (กด F5 บนหน้า player จึงหา master URL ใหม่ได้เสมอ — token สดทุกครั้ง)
-  // 24hd: มี master URL (vdohls ไม่มี token) มาแล้ว ส่งไปเลย เล่นได้ทันทีไม่ต้อง resolve
-  const p=new URLSearchParams({url,title,desc,image,quality,sound,site});
-  if(master) p.set('master',master);
-  location.href='/player?'+p.toString();
+function play(d){
+  // ส่งแค่ id ไป — หน้า player ไปถาม DB เองว่าหนังเรื่องนี้คืออะไร (url/โพสเตอร์/
+  // เสียง/มาสเตอร์) แล้วค่อย resolve master สด ๆ เอง (กด F5 = master ใหม่เสมอ)
+  location.href='/player?id='+encodeURIComponent(d.id);
 }
 ovClose.onclick=()=>ov.classList.remove('show');
 
@@ -345,6 +344,6 @@ syncHeader();
 loadMovies().catch(e=>{
   countEl.textContent='โหลดรายการไม่ได้';
   emptyEl.style.display='block';
-  emptyEl.textContent='โหลด 77hd_movies.json ไม่ได้ — รัน `python3 list_77hd.py` ก่อน';
+  emptyEl.textContent='โหลดรายการหนังไม่ได้ — ตรวจ movies.db (รัน `python3 list_77hd.py`)';
 });
 </script></body></html>

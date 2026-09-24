@@ -29,6 +29,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, Response
 
 import tools_77hd as S   # reuse ทั้งหมด: STATE, locks, helpers, proxy/download/resolve logic
+import movies_db         # ที่เก็บรายการหนัง (SQLite) — ใช้นับแถวตอนเริ่มเซิร์ฟเวอร์
 
 M3U8 = "application/vnd.apple.mpegurl"
 JSONH = "application/json; charset=utf-8"
@@ -53,18 +54,15 @@ def _q(request: Request, key: str, default: str = "") -> str:
 
 
 def _configure_browse() -> None:
-    """โหมด browse: โหลดรายการหนังจาก 77hd_movies.json (เหมือน main() ของตัวเดิม)"""
+    """โหมด browse: โหลดรายการหนังจาก movies.db (เหมือน main() ของตัวเดิม)"""
     S.STATE["browse"] = True
-    if not S.MOVIES_JSON.exists():
-        print(f"เตือน: ไม่พบ {S.MOVIES_JSON.name} — รัน `python3 list_77hd.py` ก่อน",
-              file=sys.stderr)
+    n = movies_db.count()
+    if not n:
+        print(f"เตือน: ยังไม่มีรายการหนังใน {movies_db.DB_PATH.name} — รัน "
+              f"`python3 list_77hd.py` ก่อน", file=sys.stderr)
         return
-    try:
-        n = len(json.loads(S.MOVIES_JSON.read_text(encoding="utf-8")))
-        print(f"โหมด browse: โหลดรายการหนัง {n} เรื่องจาก {S.MOVIES_JSON.name}",
-              file=sys.stderr)
-    except Exception:  # noqa: BLE001
-        print(f"โหมด browse: ใช้ {S.MOVIES_JSON.name}", file=sys.stderr)
+    print(f"โหมด browse: โหลดรายการหนัง {n} เรื่องจาก {movies_db.DB_PATH.name}",
+          file=sys.stderr)
 
 
 @app.on_event("startup")
@@ -94,6 +92,18 @@ def movies_json() -> Response:
     if not movies:
         return Response(b"[]", status_code=404, media_type=JSONH)
     return _json(movies)
+
+
+@app.get("/movie.json")
+def movie_json(request: Request) -> Response:
+    # หน้า player เปิดด้วย ?id= แล้วมาถามเรื่องนี้จาก DB
+    try:
+        movie = S.find_movie(int(_q(request, "id")))
+    except ValueError:
+        movie = None
+    if movie is None:
+        return _json({"error": "not found"}, 404)
+    return _json(movie)
 
 
 @app.get("/resolve")

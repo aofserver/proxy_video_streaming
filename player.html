@@ -251,8 +251,11 @@
 <script src="https://cdn.jsdelivr.net/npm/hls.js@1/dist/hls.min.js"></script>
 <script>
 const QS=new URLSearchParams(location.search);
-const SOURCE=QS.get('url')||'';
-const SITE=QS.get('site')||'';
+// มาจาก browse: ?id=<id ใน DB> — ที่เหลือ (url/โพสเตอร์/เสียง/มาสเตอร์) ไปถาม DB เอง
+// เปิดด้วย ?url= ตรง ๆ ก็ยังใช้ได้ (คงไว้ให้ลิงก์/บุ๊กมาร์กเดิมไม่พัง)
+const ID=QS.get('id')||'';
+let SOURCE=QS.get('url')||'';
+let SITE=QS.get('site')||'';
 let MASTER=QS.get('master')||'';   // master URL ของเรื่องนี้ — 24hd ส่งมาตรง ๆ (vdohls ไม่มี token)
                                    // 77hd จะได้จาก /resolve ทีหลัง
 let META=__META_JSON__;
@@ -266,6 +269,17 @@ if(SOURCE){
     quality:QS.get('quality')||'',
     sound:QS.get('sound')||'',
   };
+}
+
+// ?id= -> ถาม DB ว่าเรื่องนี้คืออะไร แล้วเติม SOURCE/SITE/MASTER/META ให้ครบ
+async function loadFromId(){
+  const r=await fetch('/movie.json?id='+encodeURIComponent(ID));
+  if(!r.ok) throw new Error(r.status===404 ? 'ไม่พบหนัง id '+ID+' ใน movies.db' : 'โหลดข้อมูลหนังไม่สำเร็จ');
+  const m=await r.json();
+  SOURCE=m.url||''; SITE=m.site||''; MASTER=m.master||'';
+  META={title:m.title||'', source:SOURCE, description:m.description||'',
+        image:m.image||'', quality:m.quality||'', sound:m.sound||''};
+  renderInfo(); applyTitle();
 }
 function applyTitle(){
   const t=META.title||'Local Player';
@@ -468,12 +482,15 @@ dlBtns.forEach(btn=>btn.addEventListener('click',()=>{
 }));
 
 // ถ้ามีดาวน์โหลดค้างอยู่ (เช่นรีเฟรชหน้า) ให้ต่อสถานะ
-fetch('/download-status'+dlQuery()).then(r=>r.json()).then(s=>{
-  if(s.running || s.phase==='done' || s.phase==='error'){
-    renderDl(s);
-    if(s.running){ setDlButtons(true); dlTimer=setInterval(pollDl,1500); }
-  }
-}).catch(()=>{});
+// (เรียกหลังรู้ SOURCE แล้วเท่านั้น — dlQuery() คีย์งานด้วย source ของเรื่อง)
+function resumeDl(){
+  fetch('/download-status'+dlQuery()).then(r=>r.json()).then(s=>{
+    if(s.running || s.phase==='done' || s.phase==='error'){
+      renderDl(s);
+      if(s.running){ setDlButtons(true); dlTimer=setInterval(pollDl,1500); }
+    }
+  }).catch(()=>{});
+}
 
 // ---- เล่นวิดีโอผ่าน hls.js ----
 function startPlayback(){
@@ -539,8 +556,9 @@ async function resolveThenPlay(){
     ? 'กำลังดึง stream จาก 24hd...'
     : 'กำลังหา stream ผ่านเบราว์เซอร์เบื้องหลัง (อาจใช้เวลาสักครู่)...','');
   try{
-    const p=new URLSearchParams({url:SOURCE});
-    ['title','desc','image','quality','sound'].forEach(k=>{const val=QS.get(k); if(val) p.set(k,val);});
+    // ส่งข้อมูลที่รู้แล้วไปให้ server เก็บใน STATE (server ไม่ได้อ่าน DB เอง)
+    const p=new URLSearchParams({url:SOURCE, title:META.title||'', desc:META.description||'',
+                                image:META.image||'', quality:META.quality||'', sound:META.sound||''});
     const r=await fetch('/resolve?'+p.toString());
     const j=await r.json();
     if(!j.ok){ hideLoader(); setStatus('หา stream ไม่สำเร็จ: '+(j.error||'ไม่ทราบสาเหตุ'),'err'); return; }
@@ -554,12 +572,23 @@ async function resolveThenPlay(){
 //  - 24hd (มี MASTER มาแล้ว): เล่นตรงผ่าน proxy ทันที ไม่ต้อง /resolve (ไม่มี Playwright/token)
 //  - 77hd (?url= แต่ไม่มี master): หา master สดก่อนผ่าน /resolve (กด F5 = master ใหม่เสมอ)
 //  - เปิดเรื่องเดียวจาก CLI (ไม่มี ?url=): เล่นจาก STATE.master ของ server
-if(MASTER){
-  setStatus('พร้อมเล่น','ok');
-  startPlayback();
-}else if(SOURCE){
-  resolveThenPlay();
-}else{
-  startPlayback();
-}
+(async()=>{
+  if(ID){
+    try{ await loadFromId(); }
+    catch(e){
+      hideLoader();
+      setStatus('เปิดเรื่องนี้ไม่ได้: '+String(e.message||e),'err');
+      return;                       // ไม่มี SOURCE ให้เล่น อย่าไปเรียก /resolve
+    }
+  }
+  resumeDl();
+  if(MASTER){
+    setStatus('พร้อมเล่น','ok');
+    startPlayback();
+  }else if(SOURCE){
+    resolveThenPlay();
+  }else{
+    startPlayback();
+  }
+})();
 </script></body></html>

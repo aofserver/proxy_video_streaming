@@ -1,17 +1,18 @@
 #!/usr/bin/env python3
 """
-list_77hd.py — ไล่เก็บ URL หนัง/ซีรีย์ทั้งหมดจาก 77-hd.com (ทุกหน้า) แล้ว dump เป็น JSON
+list_77hd.py — ไล่เก็บ URL หนัง/ซีรีย์ทั้งหมดจาก 77-hd.com (ทุกหน้า) เก็บลง SQLite
 
 หลักการ:
   หน้า listing อยู่ที่ https://77-hd.com/ (หน้า 1) และ https://77-hd.com/page/N/
   แต่ละหน้ามีลิงก์หนังแบบ https://77-hd.com/<slug>/ (ไม่ใช่ /category/, /page/, /tag/ ฯลฯ)
   การ์ดหนังจะมี <a> ซ้อนกับรูป + ชื่อเรื่อง — ดึง href + ข้อความชื่อจาก title/alt/ข้อความในลิงก์
+
+ผลลัพธ์เก็บใน movies.db (ตาราง movies, source='77hd') ผ่าน movies_db.py
 """
 from __future__ import annotations
 
 import argparse
 import html as html_mod
-import json
 import re
 import sys
 import time
@@ -21,6 +22,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 from download_video_77hd import http_get  # reuse: HTTP GET + desktop UA/headers
+import movies_db
 
 BASE = "https://77-hd.com"
 
@@ -208,8 +210,8 @@ def add_descriptions(movies: dict[str, dict], workers: int, delay: float,
     def work(u: str):
         try:
             return u, fetch_detail(u)
-        except Exception as e:  # noqa: BLE001
-            return u, (f"[ดึงไม่ได้: {e}]", "")
+        except Exception:  # noqa: BLE001
+            return u, ("", "")          # ดึงไม่ได้ -> เว้นว่าง (upsert จะคงเรื่องย่อเดิมไว้)
 
     with ThreadPoolExecutor(max_workers=workers) as ex:
         futs = [ex.submit(work, u) for u in urls]
@@ -225,39 +227,22 @@ def add_descriptions(movies: dict[str, dict], workers: int, delay: float,
                     on_progress({"phase": "desc", "done": done, "total": total})
 
 
-def movies_to_list(movies: dict[str, dict]) -> list[dict]:
-    return [
-        {
-            "title": rec.get("title", ""),
-            "url": u,
-            "image": rec.get("image", ""),
-            "sound": rec.get("sound", ""),
-            "quality": rec.get("quality", ""),
-            "description": ("" if rec.get("description", "").startswith("[ดึงไม่ได้")
-                            else rec.get("description", "")),
-        }
-        for u, rec in sorted(movies.items())
-    ]
-
-
-def run_crawl(out_path, *, max_pages: int = 0, delay: float = 0.3,
+def run_crawl(*, max_pages: int = 0, delay: float = 0.3,
               with_desc: bool = True, workers: int = 10, on_progress=None) -> int:
-    """ไล่เก็บหนังทั้งหมด (+description ถ้า with_desc) แล้วเขียนไฟล์ JSON; คืนจำนวนเรื่อง
+    """ไล่เก็บหนังทั้งหมด (+description ถ้า with_desc) แล้ว upsert ลง movies.db; คืนจำนวนเรื่อง
     ใช้ได้ทั้งจาก CLI และเรียกจาก tools_77hd.py (ปุ่มอัปเดต)"""
     movies = crawl(max_pages, delay, on_progress=on_progress)
     if with_desc:
         add_descriptions(movies, workers, delay, on_progress=on_progress)
-    out_list = movies_to_list(movies)
-    Path(out_path).write_text(
-        json.dumps(out_list, ensure_ascii=False, indent=2), encoding="utf-8")
+    n = movies_db.upsert("77hd", movies)
     if on_progress:
-        on_progress({"phase": "done", "count": len(out_list)})
-    return len(out_list)
+        on_progress({"phase": "done", "count": n})
+    return n
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="เก็บ URL หนังทั้งหมดจาก 77-hd.com เป็น JSON")
-    ap.add_argument("-o", "--out", default="77hd_movies.json", help="ไฟล์ JSON ปลายทาง")
+    ap = argparse.ArgumentParser(
+        description=f"เก็บ URL หนังทั้งหมดจาก 77-hd.com ลง {movies_db.DB_PATH.name}")
     ap.add_argument("--max-pages", type=int, default=0,
                     help="จำนวนหน้าสูงสุด (0 = auto-detect จาก pagination, ค่าเริ่มต้น)")
     ap.add_argument("--delay", type=float, default=0.4, help="หน่วงเวลาต่อหน้า (วินาที)")
@@ -269,9 +254,9 @@ def main() -> int:
 
     tgt = "auto-detect" if args.max_pages <= 0 else f"สูงสุด {args.max_pages} หน้า"
     print(f"เริ่มไล่เก็บหนังจาก {BASE} ({tgt}) ...", file=sys.stderr)
-    n = run_crawl(args.out, max_pages=args.max_pages, delay=args.delay,
+    n = run_crawl(max_pages=args.max_pages, delay=args.delay,
                   with_desc=not args.no_desc, workers=args.workers)
-    print(f"\n✔ เสร็จ: {n} เรื่อง → {args.out}", file=sys.stderr)
+    print(f"\n✔ เสร็จ: {n} เรื่อง → {movies_db.DB_PATH}", file=sys.stderr)
     return 0
 
 

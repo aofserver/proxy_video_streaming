@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """
-list_24hd.py — ไล่เก็บหนัง/ซีรีย์ทั้งหมดจาก 24hd.media แล้ว dump เป็น JSON
+list_24hd.py — ไล่เก็บหนัง/ซีรีย์ทั้งหมดจาก 24hd.media เก็บลง SQLite
 พร้อม "Master URL" (HLS playlist ของ vdohls — ไม่มี auth/token)
+
+ผลลัพธ์เก็บใน movies.db (ตาราง movies, source='24hd') ผ่าน movies_db.py
 
 หลักการ:
   1) หน้า listing อยู่ตาม "category" (เช่น /category/inter-movie/, /category/netflix/ ...)
@@ -18,7 +20,6 @@ from __future__ import annotations
 
 import argparse
 import html as html_mod
-import json
 import re
 import sys
 import time
@@ -29,6 +30,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 from download_video_77hd import http_get  # reuse: HTTP GET + desktop UA/headers
+import movies_db
 
 BASE = "https://www.24hd.media"
 HOST = "24hd.media"
@@ -302,9 +304,9 @@ def resolve_all(movies: dict[str, dict], workers: int,
     def work(u: str):
         try:
             return u, resolve_master(u)
-        except Exception as e:  # noqa: BLE001
-            return u, {"embed": "", "master": "", "description": f"[ดึงไม่ได้: {e}]",
-                       "image": ""}
+        except Exception:  # noqa: BLE001
+            # ดึงไม่ได้ -> เว้นว่าง (upsert จะคงค่าเดิมไว้ ไม่ลบ master/description ทิ้ง)
+            return u, {"embed": "", "master": "", "description": "", "image": ""}
 
     with ThreadPoolExecutor(max_workers=workers) as ex:
         futs = [ex.submit(work, u) for u in urls]
@@ -312,8 +314,7 @@ def resolve_all(movies: dict[str, dict], workers: int,
             u, info = f.result()
             movies[u]["embed"] = info.get("embed", "")
             movies[u]["master"] = info.get("master", "")
-            desc = info.get("description", "")
-            movies[u]["description"] = "" if desc.startswith("[ดึงไม่ได้") else desc
+            movies[u]["description"] = info.get("description", "")
             if info.get("image") and not movies[u].get("image"):
                 movies[u]["image"] = info["image"]
             done += 1
@@ -326,40 +327,24 @@ def resolve_all(movies: dict[str, dict], workers: int,
                                  "with_master": ok})
 
 
-def movies_to_list(movies: dict[str, dict]) -> list[dict]:
-    return [
-        {
-            "title": rec.get("title", ""),
-            "url": u,
-            "image": rec.get("image", ""),
-            "embed": rec.get("embed", ""),
-            "master": rec.get("master", ""),
-            "description": rec.get("description", ""),
-        }
-        for u, rec in sorted(movies.items())
-    ]
-
-
-def run_crawl(out_path, *, categories: list[str] | None = None,
+def run_crawl(*, categories: list[str] | None = None,
               max_pages: int = 0, delay: float = 0.3, with_master: bool = True,
               workers: int = 10, on_progress=None) -> int:
-    """ไล่เก็บหนังทั้งหมด (+master ถ้า with_master) แล้วเขียน JSON; คืนจำนวนเรื่อง"""
+    """ไล่เก็บหนังทั้งหมด (+master ถ้า with_master) แล้ว upsert ลง movies.db; คืนจำนวนเรื่อง"""
     cats = categories or DEFAULT_CATEGORIES
     movies = crawl_listing(cats, max_pages, delay, on_progress=on_progress)
     if with_master:
         resolve_all(movies, workers, on_progress=on_progress)
-    out_list = movies_to_list(movies)
-    Path(out_path).write_text(
-        json.dumps(out_list, ensure_ascii=False, indent=2), encoding="utf-8")
+    n = movies_db.upsert("24hd", movies)
     if on_progress:
-        on_progress({"phase": "done", "count": len(out_list)})
-    return len(out_list)
+        on_progress({"phase": "done", "count": n})
+    return n
 
 
 def main() -> int:
     ap = argparse.ArgumentParser(
-        description="เก็บรายชื่อหนังจาก 24hd.media เป็น JSON พร้อม Master URL (vdohls)")
-    ap.add_argument("-o", "--out", default="24hd_movies.json", help="ไฟล์ JSON ปลายทาง")
+        description=f"เก็บรายชื่อหนังจาก 24hd.media ลง {movies_db.DB_PATH.name} "
+                    f"พร้อม Master URL (vdohls)")
     ap.add_argument("--max-pages", type=int, default=0,
                     help="จำนวนหน้าต่อ category (0 = auto-detect, ค่าเริ่มต้น)")
     ap.add_argument("--delay", type=float, default=0.3, help="หน่วงเวลาต่อหน้า (วินาที)")
@@ -373,10 +358,10 @@ def main() -> int:
 
     tgt = "auto-detect" if args.max_pages <= 0 else f"สูงสุด {args.max_pages} หน้า/หมวด"
     print(f"เริ่มไล่เก็บหนังจาก {BASE} ({tgt}) ...", file=sys.stderr)
-    n = run_crawl(args.out, categories=args.categories, max_pages=args.max_pages,
+    n = run_crawl(categories=args.categories, max_pages=args.max_pages,
                   delay=args.delay, with_master=not args.no_master,
                   workers=args.workers)
-    print(f"\n✔ เสร็จ: {n} เรื่อง → {args.out}", file=sys.stderr)
+    print(f"\n✔ เสร็จ: {n} เรื่อง → {movies_db.DB_PATH}", file=sys.stderr)
     return 0
 
 
